@@ -102,26 +102,28 @@ where
 
     type Ok = R;
 
-    async fn from_i2c_async(bus: &mut I2C, i2c_address: u8) -> Result<Self::Ok, Self::Error> {
-        // Inner function to reduce the impact of monomorphization for Register. It'll still get
-        // duplicated, but it should just be duplicated on I2C, and there should only be one of those
-        // in an application (usually).
-        async fn read_register<I2C: i2c_async::I2c + i2c_async::ErrorType>(
-            bus: &mut I2C,
-            address: u8,
-            register_address: Address,
-        ) -> Result<[u8; 2], I2C::Error> {
-            let register_address_bytes = register_address.as_bytes();
-            let mut register_bytes = [0u8; 2];
-            bus.write_read(address, &register_address_bytes, &mut register_bytes).await?;
-            Ok(register_bytes)
-        }
+    fn from_i2c_async(bus: &mut I2C, i2c_address: u8) -> impl core::future::Future<Output = Result<Self::Ok, Self::Error>> {
+        async move {
+            // Inner function to reduce the impact of monomorphization for Register. It'll still get
+            // duplicated, but it should just be duplicated on I2C, and there should only be one of those
+            // in an application (usually).
+            async fn read_register<I2C: i2c_async::I2c + i2c_async::ErrorType>(
+                bus: &mut I2C,
+                address: u8,
+                register_address: Address,
+            ) -> Result<[u8; 2], I2C::Error> {
+                let register_address_bytes = register_address.as_bytes();
+                let mut register_bytes = [0u8; 2];
+                bus.write_read(address, &register_address_bytes, &mut register_bytes).await?;
+                Ok(register_bytes)
+            }
 
-        let register_address = R::address();
-        let register_value =
-            read_register(bus, i2c_address, register_address).await.map_err(Error::I2cWriteReadError)?;
-        let register = R::from(&register_value[..]);
-        Ok(register)
+            let register_address = R::address();
+            let register_value =
+                read_register(bus, i2c_address, register_address).await.map_err(Error::I2cWriteReadError)?;
+            let register = R::from(&register_value[..]);
+            Ok(register)
+        }
     }
 }
 
@@ -132,34 +134,37 @@ where
 {
     type Error = Error<I2C>;
 
-    async fn to_i2c_async(&self, bus: &mut I2C, i2c_address: u8) -> Result<(), Self::Error> {
-        async fn write_raw_register<I2C: i2c_async::I2c + i2c_async::ErrorType>(
-            bus: &mut I2C,
-            address: u8,
-            register_address: [u8; 2],
-            register_data: [u8; 2],
-        ) -> Result<(), I2C::Error> {
-            let combined: [u8; 4] = [
-                register_address[0],
-                register_address[1],
-                register_data[0],
-                register_data[1],
-            ];
-            bus.write(address, &combined).await?;
+    fn to_i2c_async(&self, bus: &mut I2C, i2c_address: u8) -> impl core::future::Future<Output = Result<(), Self::Error>> {
+        let register_value = *self;
+        async move {
+            async fn write_raw_register<I2C: i2c_async::I2c + i2c_async::ErrorType>(
+                bus: &mut I2C,
+                address: u8,
+                register_address: [u8; 2],
+                register_data: [u8; 2],
+            ) -> Result<(), I2C::Error> {
+                let combined: [u8; 4] = [
+                    register_address[0],
+                    register_address[1],
+                    register_data[0],
+                    register_data[1],
+                ];
+                bus.write(address, &combined).await?;
+                Ok(())
+            }
+
+            let register_address = R::address();
+            let register_bytes: [u8; 2] = register_value.into();
+            write_raw_register(
+                bus,
+                i2c_address,
+                register_address.as_bytes(),
+                register_bytes,
+            )
+            .await
+            .map_err(Error::I2cWriteError)?;
             Ok(())
         }
-
-        let register_address = R::address();
-        let register_bytes: [u8; 2] = (*self).into();
-        write_raw_register(
-            bus,
-            i2c_address,
-            register_address.as_bytes(),
-            register_bytes,
-        )
-        .await
-        .map_err(Error::I2cWriteError)?;
-        Ok(())
     }
 }
 

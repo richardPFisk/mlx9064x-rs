@@ -233,16 +233,18 @@ where
     type Error = Error<I2C>;
     type Ok = Self;
 
-    async fn from_i2c_async(bus: &mut I2C, i2c_address: u8) -> Result<Self, Error<I2C>> {
-        // Dump the EEPROM. Both cameras use the same size and starting offset for their EEPROM.
-        const EEPROM_LENGTH: usize =
-            (EepromAddress::End as usize - EepromAddress::Base as usize + 1) * 2;
-        let mut eeprom_buf = [0u8; EEPROM_LENGTH];
-        let eeprom_base: Address = EepromAddress::Base.into();
-        bus.write_read(i2c_address, &eeprom_base.as_bytes(), &mut eeprom_buf)
-            .await
-            .map_err(Error::I2cWriteReadError)?;
-        Ok(Self::from_data(&eeprom_buf)?)
+    fn from_i2c_async(bus: &mut I2C, i2c_address: u8) -> impl core::future::Future<Output = Result<Self, Error<I2C>>> {
+        async move {
+            // Dump the EEPROM. Both cameras use the same size and starting offset for their EEPROM.
+            const EEPROM_LENGTH: usize =
+                (EepromAddress::End as usize - EepromAddress::Base as usize + 1) * 2;
+            let mut eeprom_buf = [0u8; EEPROM_LENGTH];
+            let eeprom_base: Address = EepromAddress::Base.into();
+            bus.write_read(i2c_address, &eeprom_base.as_bytes(), &mut eeprom_buf)
+                .await
+                .map_err(Error::I2cWriteReadError)?;
+            Ok(Self::from_data(&eeprom_buf)?)
+        }
     }
 }
 

@@ -38,7 +38,7 @@ pub trait FromI2CAsync<I2C> {
     type Ok;
 
     /// Create an instance of a type using data retrieved over I²C.
-    async fn from_i2c_async(bus: &mut I2C, i2c_address: u8) -> Result<Self::Ok, Self::Error>;
+    fn from_i2c_async(bus: &mut I2C, i2c_address: u8) -> impl core::future::Future<Output = Result<Self::Ok, Self::Error>>;
 }
 
 /// An async trait for types that can be written to an I²C device.
@@ -46,7 +46,7 @@ pub trait ToI2CAsync<I2C> {
     type Error;
 
     /// Write the value of this type to the specified I²C device.
-    async fn to_i2c_async(&self, bus: &mut I2C, i2c_address: u8) -> Result<(), Self::Error>;
+    fn to_i2c_async(&self, bus: &mut I2C, i2c_address: u8) -> impl core::future::Future<Output = Result<(), Self::Error>>;
 }
 
 /// A trait for flagging individual pixels.
@@ -461,33 +461,35 @@ where
 }
 
 /// Read a frame of data from the camera's memory (async version).
-pub async fn read_ram_async<Cam, I2C, const HEIGHT: usize>(
-    bus: &mut I2C,
+pub fn read_ram_async<'a, Cam, I2C, const HEIGHT: usize>(
+    bus: &'a mut I2C,
     i2c_address: u8,
     access_pattern: AccessPattern,
     subpage: Subpage,
-    pixel_data_buffer: &mut [u8],
-) -> Result<RamData, Error<I2C>>
+    pixel_data_buffer: &'a mut [u8],
+) -> impl core::future::Future<Output = Result<RamData, Error<I2C>>> + use<'a, Cam, I2C, HEIGHT>
 where
     Cam: MelexisCamera,
     I2C: i2c_async::I2c + i2c_async::ErrorType,
 {
-    // Pick a maximum size of HEIGHT, as the worst access pattern is still by rows
-    let pixel_ranges: ArrayVec<PixelAddressRange, HEIGHT> =
-        Cam::pixel_ranges(subpage, access_pattern)
-            .into_iter()
-            .collect();
-    for range in pixel_ranges.iter() {
-        let offset = range.buffer_offset;
-        let address_bytes = range.start_address.as_bytes();
-        bus.write_read(
-            i2c_address,
-            &address_bytes[..],
-            &mut pixel_data_buffer[offset..(offset + range.length)],
-        )
-        .await
-        .map_err(Error::I2cWriteReadError)?;
+    async move {
+        // Pick a maximum size of HEIGHT, as the worst access pattern is still by rows
+        let pixel_ranges: ArrayVec<PixelAddressRange, HEIGHT> =
+            Cam::pixel_ranges(subpage, access_pattern)
+                .into_iter()
+                .collect();
+        for range in pixel_ranges.iter() {
+            let offset = range.buffer_offset;
+            let address_bytes = range.start_address.as_bytes();
+            bus.write_read(
+                i2c_address,
+                &address_bytes[..],
+                &mut pixel_data_buffer[offset..(offset + range.length)],
+            )
+            .await
+            .map_err(Error::I2cWriteReadError)?;
+        }
+        // And now to read the non-pixel information out
+        RamData::from_i2c_async::<I2C, Cam>(bus, i2c_address, subpage).await.map_err(Error::I2cWriteReadError)
     }
-    // And now to read the non-pixel information out
-    RamData::from_i2c_async::<I2C, Cam>(bus, i2c_address, subpage).await.map_err(Error::I2cWriteReadError)
 }
