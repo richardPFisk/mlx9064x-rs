@@ -3,10 +3,11 @@
 use core::convert::{TryFrom, TryInto};
 use core::time::Duration;
 
-use embedded_hal::blocking::i2c;
+use embedded_hal::i2c;
+use embedded_hal_async::i2c as i2c_async;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::common::{Address, FromI2C, ToI2C};
+use crate::common::{Address, FromI2C, ToI2C, FromI2CAsync, ToI2CAsync};
 use crate::error::{Error, LibraryError};
 use crate::util::is_bit_set;
 
@@ -26,7 +27,7 @@ pub(crate) trait Register: Into<[u8; 2]> + for<'a> From<&'a [u8]> {
 impl<I2C, R> FromI2C<I2C> for R
 where
     R: Register,
-    I2C: i2c::WriteRead + i2c::Write,
+    I2C: i2c::I2c + i2c::ErrorType,
 {
     type Error = Error<I2C>;
 
@@ -36,7 +37,7 @@ where
         // Inner function to reduce the impact of monomorphization for Register. It'll still get
         // duplicated, but it should just be duplicated on I2C, and there should only be one of those
         // in an application (usually).
-        fn read_register<I2C: i2c::WriteRead>(
+        fn read_register<I2C: i2c::I2c + i2c::ErrorType>(
             bus: &mut I2C,
             address: u8,
             register_address: Address,
@@ -58,12 +59,12 @@ where
 impl<I2C, R> ToI2C<I2C> for R
 where
     R: Copy + Register,
-    I2C: i2c::WriteRead + i2c::Write,
+    I2C: i2c::I2c + i2c::ErrorType,
 {
     type Error = Error<I2C>;
 
     fn to_i2c(&self, bus: &mut I2C, i2c_address: u8) -> Result<(), Self::Error> {
-        fn write_raw_register<I2C: i2c::Write>(
+        fn write_raw_register<I2C: i2c::I2c + i2c::ErrorType>(
             bus: &mut I2C,
             address: u8,
             register_address: [u8; 2],
@@ -87,6 +88,76 @@ where
             register_address.as_bytes(),
             register_bytes,
         )
+        .map_err(Error::I2cWriteError)?;
+        Ok(())
+    }
+}
+
+impl<I2C, R> FromI2CAsync<I2C> for R
+where
+    R: Register,
+    I2C: i2c_async::I2c + i2c_async::ErrorType,
+{
+    type Error = Error<I2C>;
+
+    type Ok = R;
+
+    async fn from_i2c_async(bus: &mut I2C, i2c_address: u8) -> Result<Self::Ok, Self::Error> {
+        // Inner function to reduce the impact of monomorphization for Register. It'll still get
+        // duplicated, but it should just be duplicated on I2C, and there should only be one of those
+        // in an application (usually).
+        async fn read_register<I2C: i2c_async::I2c + i2c_async::ErrorType>(
+            bus: &mut I2C,
+            address: u8,
+            register_address: Address,
+        ) -> Result<[u8; 2], I2C::Error> {
+            let register_address_bytes = register_address.as_bytes();
+            let mut register_bytes = [0u8; 2];
+            bus.write_read(address, &register_address_bytes, &mut register_bytes).await?;
+            Ok(register_bytes)
+        }
+
+        let register_address = R::address();
+        let register_value =
+            read_register(bus, i2c_address, register_address).await.map_err(Error::I2cWriteReadError)?;
+        let register = R::from(&register_value[..]);
+        Ok(register)
+    }
+}
+
+impl<I2C, R> ToI2CAsync<I2C> for R
+where
+    R: Copy + Register,
+    I2C: i2c_async::I2c + i2c_async::ErrorType,
+{
+    type Error = Error<I2C>;
+
+    async fn to_i2c_async(&self, bus: &mut I2C, i2c_address: u8) -> Result<(), Self::Error> {
+        async fn write_raw_register<I2C: i2c_async::I2c + i2c_async::ErrorType>(
+            bus: &mut I2C,
+            address: u8,
+            register_address: [u8; 2],
+            register_data: [u8; 2],
+        ) -> Result<(), I2C::Error> {
+            let combined: [u8; 4] = [
+                register_address[0],
+                register_address[1],
+                register_data[0],
+                register_data[1],
+            ];
+            bus.write(address, &combined).await?;
+            Ok(())
+        }
+
+        let register_address = R::address();
+        let register_bytes: [u8; 2] = (*self).into();
+        write_raw_register(
+            bus,
+            i2c_address,
+            register_address.as_bytes(),
+            register_bytes,
+        )
+        .await
         .map_err(Error::I2cWriteError)?;
         Ok(())
     }

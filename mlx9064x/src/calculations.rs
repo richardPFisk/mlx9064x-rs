@@ -131,7 +131,8 @@
 
 use core::convert::TryInto;
 
-use embedded_hal::blocking::i2c;
+use embedded_hal::i2c;
+use embedded_hal_async::i2c as i2c_async;
 
 // Various floating point operations are not implemented in core, so we use libm to provide them as
 // needed.
@@ -279,7 +280,7 @@ impl RamData {
         ram_address: Address,
     ) -> Result<i16, I2C::Error>
     where
-        I2C: i2c::WriteRead,
+        I2C: i2c::I2c + i2c::ErrorType,
     {
         let address_bytes = ram_address.as_bytes();
         let mut scratch = [0u8; 2];
@@ -298,7 +299,7 @@ impl RamData {
         subpage: Subpage,
     ) -> Result<Self, I2C::Error>
     where
-        I2C: i2c::WriteRead,
+        I2C: i2c::I2c + i2c::ErrorType,
         Cam: MelexisCamera,
     {
         let t_a_v_be = Self::read_ram_value(bus, i2c_address, Cam::T_A_V_BE)?;
@@ -307,6 +308,53 @@ impl RamData {
         let gain = Self::read_ram_value(bus, i2c_address, Cam::GAIN)?;
         let compensation_pixel =
             Self::read_ram_value(bus, i2c_address, Cam::compensation_pixel(subpage))?;
+        Ok(Self {
+            t_a_v_be,
+            t_a_ptat,
+            v_dd_pixel,
+            gain,
+            compensation_pixel,
+        })
+    }
+
+    /// Read a value from the camera's RAM (async version).
+    ///
+    /// All values in RAM are signed 16-bit integers, so this function also converts the raw values
+    /// into [`i16`].
+    async fn read_ram_value_async<I2C>(
+        bus: &mut I2C,
+        i2c_address: u8,
+        ram_address: Address,
+    ) -> Result<i16, I2C::Error>
+    where
+        I2C: i2c_async::I2c + i2c_async::ErrorType,
+    {
+        let address_bytes = ram_address.as_bytes();
+        let mut scratch = [0u8; 2];
+        bus.write_read(i2c_address, &address_bytes[..], &mut scratch[..]).await?;
+        Ok(i16::from_be_bytes(scratch))
+    }
+
+    /// Read the non-pixel values from the specified camera over I²C (async version)
+    ///
+    /// The non-pixel values are $T_{a_{V_{BE}}}$,
+    /// $T_{a_{PTAT}}$, $V_{DD_{pix}}$, gain and the corresponding compensation pixel for the given
+    /// subpage.
+    pub async fn from_i2c_async<I2C, Cam>(
+        bus: &mut I2C,
+        i2c_address: u8,
+        subpage: Subpage,
+    ) -> Result<Self, I2C::Error>
+    where
+        I2C: i2c_async::I2c + i2c_async::ErrorType,
+        Cam: MelexisCamera,
+    {
+        let t_a_v_be = Self::read_ram_value_async(bus, i2c_address, Cam::T_A_V_BE).await?;
+        let t_a_ptat = Self::read_ram_value_async(bus, i2c_address, Cam::T_A_PTAT).await?;
+        let v_dd_pixel = Self::read_ram_value_async(bus, i2c_address, Cam::V_DD_PIXEL).await?;
+        let gain = Self::read_ram_value_async(bus, i2c_address, Cam::GAIN).await?;
+        let compensation_pixel =
+            Self::read_ram_value_async(bus, i2c_address, Cam::compensation_pixel(subpage)).await?;
         Ok(Self {
             t_a_v_be,
             t_a_ptat,

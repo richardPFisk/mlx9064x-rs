@@ -14,18 +14,17 @@ autoexamples = false
 [dependencies]
 # anyhow is only required for examples
 anyhow = { version = "1.0", optional = true }
+tokio = { version = "1.0", features = ["rt-multi-thread", "time", "macros"], optional = true }
 arrayvec = { version = "0.7", default-features = false }
 bitvec = { version = "1", default-features = false }
-embedded-hal = "0.2.5"
-# linux-embedded-hal is only required for examples
-linux-embedded-hal = { version = "0.3", optional = true }
+embedded-hal = "1.0.0"
+embedded-hal-async = "1.0.0"
 num_enum = { version = "0.5", default-features = false }
 num-traits = { version = "0.2", default-features = false }
 paste = "1"
 
 [dev-dependencies]
 float-cmp = "0.9.0"
-linux-embedded-hal = "0.3"
 criterion = "0.3"
 
 [dev-dependencies.mlx9064x-test-data]
@@ -34,17 +33,15 @@ version = "0.2.1"
 
 [features]
 default = ["std"]
-examples = ["anyhow", "linux-embedded-hal", "std"]
+examples = ["anyhow", "std"]
+async-examples = ["tokio", "std"]
 libm = ["num-traits/libm"]
 std = ["arrayvec/std", "num-traits/std"]
 
-[[example]]
-name = "true-frame-rate"
-required-features = ["examples"]
 
 [[example]]
-name = "terminal-temperatures"
-required-features = ["examples"]
+name = "async_camera"
+required-features = ["async-examples"]
 
 [[bench]]
 name = "raw_to_temperatures"

@@ -78,15 +78,19 @@ pub mod common;
 #[doc(hidden)]
 pub mod driver;
 #[doc(hidden)]
+pub mod driver_async;
+#[doc(hidden)]
 pub mod error;
 pub mod mlx90640;
 pub mod mlx90641;
 pub mod register;
 mod util;
 
-pub use common::{Address, CalibrationData, MelexisCamera};
+pub use common::{Address, CalibrationData, MelexisCamera, FromI2CAsync, ToI2CAsync};
 #[doc(inline)]
 pub use driver::CameraDriver;
+#[doc(inline)]
+pub use driver_async::CameraDriverAsync;
 #[doc(inline)]
 pub use error::{Error, LibraryError};
 pub use register::*;
@@ -101,6 +105,22 @@ pub type Mlx90640Driver<I2C> = CameraDriver<
 
 /// High-level MLX90641 driver.
 pub type Mlx90641Driver<I2C> = CameraDriver<
+    mlx90641::Mlx90641Calibration,
+    I2C,
+    { mlx90641::Mlx90641::HEIGHT },
+    { mlx90641::Mlx90641::NUM_PIXELS * 2 },
+>;
+
+/// High-level async MLX90640 driver.
+pub type Mlx90640DriverAsync<I2C> = CameraDriverAsync<
+    mlx90640::Mlx90640Calibration,
+    I2C,
+    { mlx90640::Mlx90640::HEIGHT },
+    { mlx90640::Mlx90640::NUM_PIXELS * 2 },
+>;
+
+/// High-level async MLX90641 driver.
+pub type Mlx90641DriverAsync<I2C> = CameraDriverAsync<
     mlx90641::Mlx90641Calibration,
     I2C,
     { mlx90641::Mlx90641::HEIGHT },

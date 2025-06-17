@@ -6,7 +6,8 @@ use core::slice;
 use arrayvec::ArrayVec;
 use bitvec::array::BitArray;
 use bitvec::slice::BitSlice;
-use embedded_hal::blocking::i2c;
+use embedded_hal::i2c;
+use embedded_hal_async::i2c as i2c_async;
 
 // Various floating point operations are not implemented in core, so we use libm to provide them as
 // needed.
@@ -405,7 +406,7 @@ impl Mlx90640Calibration {
 
 impl<I2C> FromI2C<I2C> for Mlx90640Calibration
 where
-    I2C: i2c::WriteRead + i2c::Write,
+    I2C: i2c::I2c + i2c::ErrorType,
 {
     type Error = Error<I2C>;
     type Ok = Self;
@@ -417,6 +418,26 @@ where
         let mut eeprom_buf = [0u8; EEPROM_LENGTH];
         let eeprom_base: Address = EepromAddress::Base.into();
         bus.write_read(i2c_address, &eeprom_base.as_bytes(), &mut eeprom_buf)
+            .map_err(Error::I2cWriteReadError)?;
+        Ok(Self::from_data(&eeprom_buf)?)
+    }
+}
+
+impl<I2C> FromI2CAsync<I2C> for Mlx90640Calibration
+where
+    I2C: i2c_async::I2c + i2c_async::ErrorType,
+{
+    type Error = Error<I2C>;
+    type Ok = Self;
+
+    async fn from_i2c_async(bus: &mut I2C, i2c_address: u8) -> Result<Self, Error<I2C>> {
+        // Dump the EEPROM. Both cameras use the same size and starting offset for their EEPROM.
+        const EEPROM_LENGTH: usize =
+            (EepromAddress::End as usize - EepromAddress::Base as usize + 1) * 2;
+        let mut eeprom_buf = [0u8; EEPROM_LENGTH];
+        let eeprom_base: Address = EepromAddress::Base.into();
+        bus.write_read(i2c_address, &eeprom_base.as_bytes(), &mut eeprom_buf)
+            .await
             .map_err(Error::I2cWriteReadError)?;
         Ok(Self::from_data(&eeprom_buf)?)
     }

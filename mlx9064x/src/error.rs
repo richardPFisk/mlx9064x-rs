@@ -5,7 +5,7 @@ extern crate std;
 
 use core::fmt;
 
-use embedded_hal::blocking::i2c;
+use embedded_hal::i2c;
 
 /// Specific kinds of errors that don't involve I²C.
 #[derive(Clone, Debug, PartialEq)]
@@ -41,15 +41,15 @@ impl std::error::Error for LibraryError {}
 /// Errors originating from this library.
 pub enum Error<I2C>
 where
-    I2C: i2c::WriteRead + i2c::Write,
+    I2C: i2c::ErrorType,
 {
     /// Errors involved with reading from I²C.
     ///
     /// All reads done by this library are preceded by a short write.
-    I2cWriteReadError(<I2C as i2c::WriteRead>::Error),
+    I2cWriteReadError(<I2C as i2c::ErrorType>::Error),
 
     /// Errors involved with only writing to I²C.
-    I2cWriteError(<I2C as i2c::Write>::Error),
+    I2cWriteError(<I2C as i2c::ErrorType>::Error),
 
     /// Other errors originating from within this library.
     LibraryError(LibraryError),
@@ -59,9 +59,8 @@ where
 // linux-embedded-hal).
 impl<I2C> fmt::Debug for Error<I2C>
 where
-    I2C: i2c::WriteRead + i2c::Write,
-    <I2C as i2c::WriteRead>::Error: fmt::Debug,
-    <I2C as i2c::Write>::Error: fmt::Debug,
+    I2C: i2c::ErrorType,
+    <I2C as i2c::ErrorType>::Error: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -80,9 +79,8 @@ where
 
 impl<I2C> fmt::Display for Error<I2C>
 where
-    I2C: i2c::WriteRead + i2c::Write,
-    <I2C as i2c::WriteRead>::Error: fmt::Debug,
-    <I2C as i2c::Write>::Error: fmt::Debug,
+    I2C: i2c::ErrorType,
+    <I2C as i2c::ErrorType>::Error: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -96,9 +94,8 @@ where
 #[cfg(feature = "std")]
 impl<I2C> std::error::Error for Error<I2C>
 where
-    I2C: i2c::WriteRead + i2c::Write,
-    <I2C as i2c::WriteRead>::Error: std::error::Error + 'static,
-    <I2C as i2c::Write>::Error: std::error::Error + 'static,
+    I2C: i2c::ErrorType,
+    <I2C as i2c::ErrorType>::Error: std::error::Error + 'static,
 {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
@@ -111,7 +108,7 @@ where
 
 impl<I2C> From<LibraryError> for Error<I2C>
 where
-    I2C: i2c::WriteRead + i2c::Write,
+    I2C: i2c::ErrorType,
 {
     fn from(lib_err: LibraryError) -> Self {
         Self::LibraryError(lib_err)
