@@ -1,2 +1,25 @@
-/target
+# Rust
+/target/
+**/target/
+**/*.rs.bk
 Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ESP32 specific
+.embuild/
+build/
+managed_components/
+
+# Example temporary files
+mlx9064x/examples/esp32c6_*/
+mlx9064x/examples/esp32c6_*.rs
+!mlx9064x/examples/esp32c6_example.rs

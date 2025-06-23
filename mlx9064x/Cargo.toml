@@ -43,6 +43,9 @@ std = ["arrayvec/std", "num-traits/std"]
 name = "async_camera"
 required-features = ["async-examples"]
 
+[[example]]
+name = "esp32c6_example"
+
 [[bench]]
 name = "raw_to_temperatures"
 harness = false

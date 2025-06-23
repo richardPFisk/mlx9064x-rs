@@ -6,20 +6,9 @@ edition = "2021"
 [workspace]
 
 [[bin]]
-name = "esp32c6-mlx9064x-test"
-path = "../esp32c6_test.rs"
+name = "example"
+path = "../esp32c6_example.rs"
 
-[[bin]]
-name = "i2c-scan"
-path = "../esp32c6_i2c_scan.rs"
-
-[[bin]]
-name = "simple-scan"
-path = "../esp32c6_simple_scan.rs"
-
-[[bin]]
-name = "mlx-test"
-path = "../esp32c6_mlx_test.rs"
 
 [dependencies]
 # ESP32-C6 HAL and runtime
@@ -30,7 +19,7 @@ esp-println = { version = "0.14.0", features = ["esp32c6"] }
 esp-alloc = "0.8.0"
 
 # Embassy async runtime
-embassy-executor = { version = "0.7.0", features = ["task-arena-size-20480"] }
+embassy-executor = { version = "0.7.0", features = ["task-arena-size-65536"] }
 embassy-time = "0.4.0"
 
 # Core embedded traits
