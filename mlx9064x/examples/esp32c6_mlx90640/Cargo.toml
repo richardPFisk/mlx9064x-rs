@@ -1,0 +1,58 @@
+[package]
+name = "esp32c6-mlx9064x-test"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[[bin]]
+name = "esp32c6-mlx9064x-test"
+path = "../esp32c6_test.rs"
+
+[[bin]]
+name = "i2c-scan"
+path = "../esp32c6_i2c_scan.rs"
+
+[[bin]]
+name = "simple-scan"
+path = "../esp32c6_simple_scan.rs"
+
+[[bin]]
+name = "mlx-test"
+path = "../esp32c6_mlx_test.rs"
+
+[dependencies]
+# ESP32-C6 HAL and runtime
+esp-bootloader-esp-idf = "0.1.0"
+esp-hal = { version = "=1.0.0-beta.1", features = ["esp32c6", "unstable"] }
+esp-hal-embassy = { version = "0.8.1", features = ["esp32c6"] }
+esp-println = { version = "0.14.0", features = ["esp32c6"] }
+esp-alloc = "0.8.0"
+
+# Embassy async runtime
+embassy-executor = { version = "0.7.0", features = ["task-arena-size-20480"] }
+embassy-time = "0.4.0"
+
+# Core embedded traits
+embedded-hal = "1.0"
+embedded-hal-async = "1.0"
+critical-section = "1.2.0"
+static_cell = { version = "2.1.0", features = ["nightly"] }
+
+# MLX9064X driver - using local path
+mlx9064x = { path = "../..", default-features = false, features = ["libm"] }
+
+# For no_std support
+num-traits = { version = "0.2", default-features = false, features = ["libm"] }
+
+[profile.dev]
+opt-level = "s"
+
+[profile.release]
+codegen-units = 1
+debug = 2
+debug-assertions = false
+incremental = false
+lto = 'fat'
+opt-level = 's'
+overflow-checks = false
